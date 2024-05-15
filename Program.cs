@@ -1,44 +1,62 @@
+using Microsoft.OpenApi.Models;
+using Starting_Project;
+using Swashbuckle.AspNetCore.Filters;
+using System.Reflection;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "CP Program APIs",
+        Version = "v1",
+        Description = "The APIs for CP Programs Test"
+    });
+
+    // Include the XML comments
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
+    // Add example filters
+    options.ExampleFilters();
+});
+
+// Add swagger examples
+builder.Services.AddSwaggerExamplesFromAssemblyOf<ProgramCredentialsModelExample>();
+builder.Services.AddSwaggerExamplesFromAssemblyOf<UpdateProgramCredentialsModelExample>();
+builder.Services.AddSwaggerExamplesFromAssemblyOf<ApplicationCredentialsModelExample>();
+
+// Add controllers
+builder.Services.AddControllers();
+
+// Configure services
+builder.Services.AddDatabaseConfiguration(builder.Configuration)
+    .AddApplicationLogger()
+    .AddDomainServices();
 
 var app = builder.Build();
+
+// Ensure database is created
+await app.CreateApplicationDatabase();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "CP Programs APIs v1");
+    });
 }
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+// Map controllers
+app.MapControllers();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
